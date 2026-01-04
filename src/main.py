@@ -3,25 +3,11 @@ import os
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-import json
+from json_handler import loadJson, saveJson
 
 # Load the token from the .env file
 load_dotenv()
 DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-
-# JSON file for bracket
-DATA_JSON = "data.json"
-
-def loadJson():
-    if os.path.exists(DATA_JSON):
-        with open(DATA_JSON, "r") as f:
-            return json.load(f)
-    else:
-        return {}
-
-def saveJson(data):
-    with open(DATA_JSON, "w") as f:
-        json.dump(data, f, indent=4)
 
 # Variable
 userData = loadJson()
