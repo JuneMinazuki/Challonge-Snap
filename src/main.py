@@ -7,7 +7,7 @@ import json
 
 # Load the token from the .env file
 load_dotenv()
-TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
 # JSON file for bracket
 DATA_JSON = "data.json"
@@ -68,5 +68,5 @@ async def on_ready():
     print(f'--------------------------------')
 
 # Run the bot
-if TOKEN:
-    bot.run(TOKEN)
+if DISCORD_BOT_TOKEN:
+    bot.run(DISCORD_BOT_TOKEN)

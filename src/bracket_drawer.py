@@ -1,5 +1,11 @@
 import aiohttp
 import asyncio
+from dotenv import load_dotenv
+import os
+
+# Load the api key from the .env file
+load_dotenv()
+CHALLONGE_API_KEY = os.getenv('CHALLONGE_API_KEY')
 
 async def fetchChallongeSvg(bracket: str):
     url = f"https://challonge.com/{bracket}.svg"
@@ -40,7 +46,34 @@ async def fetchChallongeSvg(bracket: str):
         except aiohttp.ClientError as e:
             print(f"[Connection Error] {e}")
 
-# Run the async main function
+async def fetchLastUpdate(session, tournamentID: str):
+    url = f"https://api.challonge.com/v1/tournaments/{tournamentID}.json"
+    params = {
+        "api_key": CHALLONGE_API_KEY,
+        "include_matches": 0,
+        "include_participants": 0
+    }
+
+    try:
+        async with session.get(url, params=params) as response:
+            response.raise_for_status()
+            data = await response.json()
+            return data['tournament']['updated_at']
+            
+    except Exception as e:
+        print(f"[Error Fetching Data] {e}")
+        return None
+
+async def main():
+    async with aiohttp.ClientSession() as session:
+        bracketId = input("Enter Bracket ID: ").strip()
+        lastUpdate = await fetchLastUpdate(session, bracketId)
+
+        if lastUpdate:
+            print(f"Last Updated: {lastUpdate}")
+
 if __name__ == "__main__":
-    bracketId = input()
-    asyncio.run(fetchChallongeSvg(bracketId))
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
