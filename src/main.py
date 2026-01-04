@@ -67,7 +67,6 @@ async def on_ready():
     print(f'ID: {bot.user.id}') # type: ignore
     print(f'--------------------------------')
 
-
 # Run the bot
 if TOKEN:
     bot.run(TOKEN)
