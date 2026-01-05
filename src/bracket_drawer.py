@@ -46,7 +46,7 @@ async def fetchChallongeSvg(bracket: str):
         except aiohttp.ClientError as e:
             print(f"[Connection Error] {e}")
 
-async def fetchLastUpdate(session, tournamentID: str):
+async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> tuple[str | None, bool]:
     url = f"https://api.challonge.com/v1/tournaments/{tournamentID}.json"
     params = {
         "api_key": CHALLONGE_API_KEY,
@@ -58,11 +58,17 @@ async def fetchLastUpdate(session, tournamentID: str):
         async with session.get(url, params=params) as response:
             response.raise_for_status()
             data = await response.json()
-            return data['tournament']['updated_at']
+
+            tournament = data['tournament']
+            lastUpdate = tournament['updated_at']
+            state = tournament['state']
+            isFinished = (state == "complete") or (state == "awaiting_review")
+
+            return lastUpdate, isFinished
             
     except Exception as e:
         print(f"[Error Fetching Data] {e}")
-        return None
+        return None, False
 
 async def main():
     async with aiohttp.ClientSession() as session:
