@@ -52,45 +52,43 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
         print(f"[Error] Error looking up ID: {e}")
         return None
     
-async def fetchChallongeSvg(bracket: str):
-    url = f"https://challonge.com/{bracket}.svg"
+async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str):
+    url = f"https://challonge.com/{tournamentID}.svg"
     filename = "bracket.png"
 
     print(f"[aiohttp] Attempting to fetch: {url}")
 
-    # Create an async session
-    async with aiohttp.ClientSession(headers=headers) as session:
-        try:
-            async with session.get(url) as response:
-                # Raise an exception for 4xx/5xx status codes
-                response.raise_for_status()
+    try:
+        async with session.get(url) as response:
+            # Raise an exception for 4xx/5xx status codes
+            response.raise_for_status()
+            
+            # Check content type to ensure it's likely an SVG
+            content_type = response.headers.get("Content-Type", "")
+            
+            # Read the binary content
+            content = await response.read()
+
+            # Basic validation (check for SVG/XML signature)
+            if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
+                print("[cairosvg] Converting SVG to PNG...")
+
+                # Convert svg to png
+                await asyncio.to_thread(
+                    cairosvg.svg2png, 
+                    bytestring = content, 
+                    write_to = filename
+                )
                 
-                # Check content type to ensure it's likely an SVG
-                content_type = response.headers.get("Content-Type", "")
-                
-                # Read the binary content
-                content = await response.read()
+                print(f"[Success] Saved file as '{filename}'")
+            else:
+                print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
+                print(f"Content-Type: {content_type}")
 
-                # Basic validation (check for SVG/XML signature)
-                if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
-                    print("[cairosvg] Converting SVG to PNG...")
-
-                    # Convert svg to png
-                    await asyncio.to_thread(
-                        cairosvg.svg2png, 
-                        bytestring = content, 
-                        write_to = filename
-                    )
-                    
-                    print(f"[Success] Saved file as '{filename}'")
-                else:
-                    print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
-                    print(f"Content-Type: {content_type}")
-
-        except aiohttp.ClientResponseError as e:
-            print(f"[HTTP Error] {e.status} - {e.message}")
-        except aiohttp.ClientError as e:
-            print(f"[Connection Error] {e}")
+    except aiohttp.ClientResponseError as e:
+        print(f"[HTTP Error] {e.status} - {e.message}")
+    except aiohttp.ClientError as e:
+        print(f"[Connection Error] {e}")
 
 async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> tuple[str | None, bool]:
     # Find the hidden tournament id
@@ -124,7 +122,7 @@ async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> 
 async def main():
     async with aiohttp.ClientSession(headers=headers) as session:
         bracketId = input("Enter Bracket ID: ").strip()
-        await fetchChallongeSvg(bracketId)
+        await fetchChallongeSvg(session, bracketId)
         lastUpdate = await fetchLastUpdate(session, bracketId)
 
         if lastUpdate:
