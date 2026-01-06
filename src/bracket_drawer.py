@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import cairosvg
 from dotenv import load_dotenv
 import os
 
@@ -9,7 +10,7 @@ CHALLONGE_API_KEY = os.getenv('CHALLONGE_API_KEY')
 
 async def fetchChallongeSvg(bracket: str):
     url = f"https://challonge.com/{bracket}.svg"
-    filename = "bracket.svg"
+    filename = "bracket.png"
     
     # Headers are crucial to avoid 403 Forbidden errors from Challonge
     headers = {
@@ -33,10 +34,16 @@ async def fetchChallongeSvg(bracket: str):
 
                 # Basic validation (check for SVG/XML signature)
                 if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
-                    # Write to file (standard file I/O blocks slightly, but is fine for small files)
-                    with open(filename, "wb") as f:
-                        f.write(content)
-                    print(f"[asyncio] Success! Saved file as '{filename}'")
+                    print("[cairosvg] Converting SVG to PNG...")
+
+                    # Convert svg to png
+                    await asyncio.to_thread(
+                        cairosvg.svg2png, 
+                        bytestring = content, 
+                        write_to = filename
+                    )
+                    
+                    print(f"[Success] Saved file as '{filename}'")
                 else:
                     print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
                     print(f"Content-Type: {content_type}")
@@ -73,6 +80,7 @@ async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> 
 async def main():
     async with aiohttp.ClientSession() as session:
         bracketId = input("Enter Bracket ID: ").strip()
+        await fetchChallongeSvg(bracketId)
         lastUpdate = await fetchLastUpdate(session, bracketId)
 
         if lastUpdate:
