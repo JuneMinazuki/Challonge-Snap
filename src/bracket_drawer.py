@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import cairosvg
 from dotenv import load_dotenv
+import xml.etree.ElementTree as ET
 import os
 import re
 
@@ -54,7 +55,7 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
     
 async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str):
     url = f"https://challonge.com/{tournamentID}.svg"
-    filename = "bracket.png"
+    filename = "bracket.jpg"
 
     print(f"[aiohttp] Attempting to fetch: {url}")
 
@@ -71,12 +72,14 @@ async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str):
 
             # Basic validation (check for SVG/XML signature)
             if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
-                print("[cairosvg] Converting SVG to PNG...")
+                editedContent = await editSvg(content)
+
+                print("[cairosvg] Converting SVG to JPG...")
 
                 # Convert svg to png
                 await asyncio.to_thread(
                     cairosvg.svg2png, 
-                    bytestring = content, 
+                    bytestring = editedContent, 
                     write_to = filename
                 )
                 
@@ -118,6 +121,74 @@ async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> 
     except Exception as e:
         print(f"[Error Fetching Data] {e}")
         return None, False
+
+async def editSvg(content: bytes, padding: int = 40) -> bytes:
+    print("[xml] Editing SVG file")
+
+    # Register namespaces to prevent 'ns0' prefixes in output
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+    treeRoot = ET.fromstring(content)
+
+    headerOffset = 110 # Challonge header
+    matchCardHeight = 55 # Height of one bracket node
+    matchCardWidth = 220 # Width of one bracket node
+    
+    maxX = 0
+    maxY = 0
+    isFound = False
+
+    # Regex to pull coordinates from strings
+    translate_pattern = re.compile(r"translate\(\s*([\d.]+)[ ,]+([\d.]+)\s*\)")
+
+    for elem in treeRoot.iter():
+        transform = elem.get('transform')
+        if transform:
+            match = translate_pattern.search(transform)
+            if match:
+                y = float(match.group(1))
+                x = float(match.group(2))
+                
+                if x > maxX: maxX = x
+                if y > maxY: maxY = y
+                isFound = True
+
+    # Calculate new dimensions based on findings
+    if isFound:
+        # Content Height = Header + Lowest Match Y + Match Height
+        contentHeight = headerOffset + maxY + matchCardHeight
+        
+        # Content Width = Furthest Match X + Match Width
+        originalWidth = float(treeRoot.get('width', 0))
+        calculatedWidth = maxX + matchCardWidth
+        contentWidth = max(originalWidth, calculatedWidth)
+    else:
+        # Fallback if parsing fails
+        contentWidth = float(treeRoot.get('width', 800))
+        contentHeight = float(treeRoot.get('height', 600))
+
+    # Add padding
+    finalWidth = contentWidth + (padding * 2)
+    finalHeight = contentHeight + (padding * 1.5)
+
+    # Update root attributes
+    treeRoot.set('width', str(finalWidth))
+    treeRoot.set('height', str(finalHeight))
+    treeRoot.set('viewBox', f"-{padding} -{padding} {finalWidth} {finalHeight}")
+
+    # Add white background
+    bg_rect = ET.Element('rect', {
+        'x': f"-{padding}",
+        'y': f"-{padding}",
+        'width': str(finalWidth),
+        'height': str(finalHeight),
+        'fill': 'white'
+    })
+    
+    # Insert at index 0 ensures it is in background
+    treeRoot.insert(0, bg_rect)
+
+    return ET.tostring(treeRoot)
 
 async def main():
     async with aiohttp.ClientSession(headers=headers) as session:
