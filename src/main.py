@@ -4,12 +4,13 @@ from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
 from json_handler import loadJson, saveJson
+from bracket_drawer import getLatestBracket
 
 # Load the token from the .env file
 load_dotenv()
 DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
-# Variable
+# Get bracketId
 userData = loadJson()
 bracketId = userData.get("bracketId", "")
 

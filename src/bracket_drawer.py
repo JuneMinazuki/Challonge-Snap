@@ -5,10 +5,15 @@ from dotenv import load_dotenv
 import xml.etree.ElementTree as ET
 import os
 import re
+from json_handler import loadJson, saveJson
 
 # Load the api key from the .env file
 load_dotenv()
 CHALLONGE_API_KEY = os.getenv('CHALLONGE_API_KEY')
+
+# Get lastUpdate
+userData = loadJson()
+lastUpdate = userData.get("lastUpdate", "")
 
 # Headers are crucial to avoid 403 Forbidden errors from Challonge
 headers = {
@@ -53,7 +58,7 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
         print(f"[Error] Error looking up ID: {e}")
         return None
     
-async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str) -> bytes | None:
+async def fetchChallongeBracket(session: aiohttp.ClientSession, tournamentID: str) -> bytes | None:
     url = f"https://challonge.com/{tournamentID}.svg"
     filename = "bracket.jpg"
 
@@ -194,14 +199,34 @@ async def editSvg(content: bytes, padding: int = 40) -> bytes:
 
     return ET.tostring(treeRoot)
 
+# Check for update, then update only when necessary
+async def getLatestBracket(tournamentID: str) -> tuple[bytes | None, bool]:
+    global lastUpdate
+    async with aiohttp.ClientSession(headers=headers) as session:
+        updateTime, isComplete = await fetchLastUpdate(session, tournamentID)
+
+        if (lastUpdate == updateTime):
+            print("[bracket_drawer] No update needed.")
+            return None, isComplete
+        
+        print(f"[bracket_drawer] Update found for {tournamentID}.")
+        
+        # Update lastUpdate
+        lastUpdate = updateTime
+        userData["lastUpdate"] = updateTime
+        saveJson(userData)
+
+        return await fetchChallongeBracket(session, tournamentID), isComplete
+
 async def main():
     async with aiohttp.ClientSession(headers=headers) as session:
         bracketId = input("Enter Bracket ID: ").strip()
-        await fetchChallongeSvg(session, bracketId)
-        lastUpdate = await fetchLastUpdate(session, bracketId)
+        await fetchChallongeBracket(session, bracketId)
+        updateTime, isComplete = await fetchLastUpdate(session, bracketId)
 
         if lastUpdate:
             print(f"Last Updated: {lastUpdate}")
+            print(f"Completed: {isComplete}")
 
 if __name__ == "__main__":
     try:
