@@ -1,8 +1,9 @@
 import os
+import io
 from typing import Any
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
 
@@ -13,53 +14,106 @@ from bracket_drawer import get_latest_bracket
 load_dotenv()
 DISCORD_BOT_TOKEN: str | None = os.getenv('DISCORD_BOT_TOKEN')
 
-# Get bracketId
-user_data: dict[str, Any] = load_json()
-bracket_id: str | None = user_data.get("bracket_id")
+class DiscordBot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True # Read commands
+        
+        # Define the command prefix
+        super().__init__(command_prefix='c!', intents=intents)
+        
+        # Load initial state
+        self.user_data: dict[str, Any] = load_json()
+        self.bracket_id: str | None = self.user_data.get("bracket_id")
+        self.last_channel_id: int | None = self.user_data.get("last_channel_id")
 
-# Setup permissions
-intents: discord.Intents = discord.Intents.default()
-intents.message_content = True # Read commands
+    async def setup_hook(self) -> None:
+        """Start the 10-minute background loop"""
+        self.refresh_bracket_loop.start()
+    
+    async def update_and_send_bracket(self, channel: discord.abc.Messageable) -> None:
+        """Logic to fetch SVG, convert, and send to Discord"""
+        if not self.bracket_id:
+            return
 
-# Define the command prefix
-bot: commands.Bot = commands.Bot(command_prefix='c!', intents=intents)
+        try:
+            image_bytes, is_complete = await get_latest_bracket(self.bracket_id)
 
+            if is_complete:
+                return
+            
+            if image_bytes:
+                with io.BytesIO(image_bytes) as image_binary:
+                    file = discord.File(fp=image_binary, filename="bracket.png")
+                    await channel.send(file=file)
+            else:
+                print(f"[Challonge Snap] No updates for {self.bracket_id}")
+        except Exception as e:
+            print(f"[Error] Failed to update bracket: {e}")
+
+    async def on_ready(self) -> None:
+        """Event: Runs when the bot successfully connects"""
+        print(f'--------------------------------')
+        print(f'Logged in as: {bot.user.name}') # type: ignore
+        print(f'ID: {bot.user.id}') # type: ignore
+        print(f'--------------------------------')
+
+    @tasks.loop(minutes=10)
+    async def refresh_bracket_loop(self) -> None:
+        """Refresh the bracket every 10 minutes"""
+        # Check if there is a bracket id and channel id
+        if not (self.bracket_id and self.last_channel_id):
+            return
+        
+        channel = self.get_channel(self.last_channel_id)
+
+        if isinstance(channel, discord.abc.Messageable):
+            print(f"[Challonge Snap] Auto-refreshing bracket: {self.bracket_id}")
+            await self.update_and_send_bracket(channel)
+        else:
+            print(f"[Warning] Channel {self.last_channel_id} is not messageable or not found.")
+
+    @refresh_bracket_loop.before_loop
+    async def before_refresh_loop(self) -> None:
+        await self.wait_until_ready()
+
+# Initialize bot
+bot = DiscordBot()
+
+# Slash Command: /bracket
 @bot.tree.command(name="bracket", description="Choose which bracket to draw from")
 @app_commands.describe(id="ID of the bracket")
-async def bracket(interaction: discord.Interaction, id: str) -> None:
-    """Command: /bracket -> Update the current bracket ID and save to JSON."""
-    global bracket_id
-    bracket_id = id
-    user_data["bracket_id"] = id
-    save_json(user_data)
+async def bracket(interaction: discord.Interaction, id: str):
+    client: DiscordBot = interaction.client # type: ignore
 
-    await interaction.response.send_message(f"Requesting bracket from https://challonge.com/{bracket_id}.svg")
-
-@bot.tree.command(name="info", description="Display the bracket ID currently in use.")
-async def info(interaction: discord.Interaction) -> None:
-    """Command: /info -> Display the URL of the bracket currently in use."""
-    await interaction.response.send_message(f"Currently requesting bracket from https://challonge.com/{bracket_id}.svg")
-
-@bot.command()
-async def update(ctx: commands.Context) -> None:
-    """Command: c!update -> Update discord slash commands"""
-    if ctx.guild is None:
-        await ctx.send("This command must be used within a server.")
-        return
+    # Update internal state
+    client.bracket_id = id
+    client.last_channel_id = interaction.channel_id
     
+    # Update and save JSON
+    client.user_data["bracket_id"] = id
+    client.user_data["last_channel_id"] = interaction.channel_id
+    save_json(client.user_data)
+
+    await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg")
+
+# Slash Command: /info
+@bot.tree.command(name="info", description="Get current bracket that the bot is drawing from")
+async def info(interaction: discord.Interaction):
+    client: DiscordBot = interaction.client # type: ignore
+
+    if client.bracket_id:
+        await interaction.response.send_message(f"Currently tracking: https://challonge.com/{client.bracket_id}.svg")
+    else:
+        await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.")
+
+# Prefix Command: c!update -> Update discord slash commands
+@bot.command()
+async def update(ctx: commands.Context):
     print("[c!update] Updating commands...")
-    bot.tree.copy_global_to(guild=ctx.guild)
-    await bot.tree.sync(guild=ctx.guild)
 
+    await bot.tree.sync()
     await ctx.send("Slash commands updated!")
-
-@bot.event
-async def on_ready() -> None:
-    """Event: Runs when the bot successfully connects"""
-    print(f'--------------------------------')
-    print(f'Logged in as: {bot.user.name}') # type: ignore
-    print(f'ID: {bot.user.id}') # type: ignore
-    print(f'--------------------------------')
 
 # Run the bot
 if DISCORD_BOT_TOKEN:
