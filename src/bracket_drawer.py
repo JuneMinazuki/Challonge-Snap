@@ -53,7 +53,7 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
         print(f"[Error] Error looking up ID: {e}")
         return None
     
-async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str):
+async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str) -> bytes | None:
     url = f"https://challonge.com/{tournamentID}.svg"
     filename = "bracket.jpg"
 
@@ -65,33 +65,37 @@ async def fetchChallongeSvg(session: aiohttp.ClientSession, tournamentID: str):
             response.raise_for_status()
             
             # Check content type to ensure it's likely an SVG
-            content_type = response.headers.get("Content-Type", "")
+            contentType = response.headers.get("Content-Type", "")
             
             # Read the binary content
             content = await response.read()
 
             # Basic validation (check for SVG/XML signature)
-            if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
+            if "image/svg+xml" in contentType or b"<svg" in content[:100].lower():
                 editedContent = await editSvg(content)
 
-                print("[cairosvg] Converting SVG to JPG...")
+                print("[cairosvg] Converting SVG to bytes...")
 
-                # Convert svg to png
-                await asyncio.to_thread(
+                # Convert svg to bytes
+                imageBytes = await asyncio.to_thread(
                     cairosvg.svg2png, 
-                    bytestring = editedContent, 
-                    write_to = filename
+                    bytestring=editedContent
                 )
                 
-                print(f"[Success] Saved file as '{filename}'")
+                print(f"[cairosvg] Image sucessfully convert to bytes")
+                return imageBytes
             else:
                 print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
-                print(f"Content-Type: {content_type}")
+                print(f"Content-Type: {contentType}")
+                return None
 
     except aiohttp.ClientResponseError as e:
         print(f"[HTTP Error] {e.status} - {e.message}")
+        return None
+    
     except aiohttp.ClientError as e:
         print(f"[Connection Error] {e}")
+        return None
 
 async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> tuple[str | None, bool]:
     # Find the hidden tournament id
