@@ -1,22 +1,25 @@
-import aiohttp
 import asyncio
-import cairosvg
-from dotenv import load_dotenv
-import xml.etree.ElementTree as ET
 import os
 import re
-from json_handler import loadJson, saveJson
+import xml.etree.ElementTree as ET
+from typing import Any
+
+import aiohttp
+import cairosvg
+from dotenv import load_dotenv
+
+from json_handler import load_json, save_json
 
 # Load the api key from the .env file
 load_dotenv()
-CHALLONGE_API_KEY = os.getenv('CHALLONGE_API_KEY')
+CHALLONGE_API_KEY: str | None = os.getenv('CHALLONGE_API_KEY')
 
-# Get lastUpdate
-userData = loadJson()
-lastUpdate = userData.get("lastUpdate", "")
+# Get last_update
+user_data: dict[str, Any] = load_json()
+last_update: str | None = user_data.get("last_update", "")
 
 # Headers are crucial to avoid 403 Forbidden errors from Challonge
-headers = {
+HEADERS: dict[str, str] = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
@@ -30,8 +33,9 @@ headers = {
     "Connection": "keep-alive"
 }
 
-async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
-    url = f"https://challonge.com/{tournamentID}"
+async def get_tournament_id(session: aiohttp.ClientSession, tournament_id: str) -> str | None:
+    """Extracts the internal numeric ID from the public Challonge page."""
+    url: str = f"https://challonge.com/{tournament_id}"
     print(f"[aiohttp] Looking up ID from public page: {url}")
 
     try:
@@ -39,15 +43,15 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
             if response.status != 200:
                 print(f"[Error] Failed to load page. Status: {response.status}")
                 return None
-            
+
             # Get HTML content
-            html = await response.text()
+            html: str = await response.text()
             
             # Find the ID hidden in the JavaScript
             match = re.search(r'"tournament":\s*\{\s*"id":\s*(\d+)', html)
             
             if match:
-                found_id = match.group(1)
+                found_id: str = match.group(1)
                 print(f"[aiohttp] Found Tournament ID: {found_id}")
                 return found_id
             else:
@@ -58,9 +62,9 @@ async def getTournamentID(session: aiohttp.ClientSession, tournamentID: str):
         print(f"[Error] Error looking up ID: {e}")
         return None
     
-async def fetchChallongeBracket(session: aiohttp.ClientSession, tournamentID: str) -> bytes | None:
-    url = f"https://challonge.com/{tournamentID}.svg"
-    filename = "bracket.jpg"
+async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id: str) -> bytes | None:
+    """Draw the challonge bracket"""
+    url: str = f"https://challonge.com/{tournament_id}.svg"
 
     print(f"[aiohttp] Attempting to fetch: {url}")
 
@@ -70,28 +74,28 @@ async def fetchChallongeBracket(session: aiohttp.ClientSession, tournamentID: st
             response.raise_for_status()
             
             # Check content type to ensure it's likely an SVG
-            contentType = response.headers.get("Content-Type", "")
+            content_type: str = response.headers.get("Content-Type", "")
             
             # Read the binary content
-            content = await response.read()
+            content: bytes = await response.read()
 
             # Basic validation (check for SVG/XML signature)
-            if "image/svg+xml" in contentType or b"<svg" in content[:100].lower():
-                editedContent = await editSvg(content)
+            if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
+                edited_content: bytes = await edit_svg(content)
 
                 print("[cairosvg] Converting SVG to bytes...")
 
                 # Convert svg to bytes
-                imageBytes = await asyncio.to_thread(
+                image_bytes: bytes | None = await asyncio.to_thread(
                     cairosvg.svg2png, 
-                    bytestring=editedContent
+                    bytestring=edited_content
                 )
                 
                 print(f"[cairosvg] Image sucessfully convert to bytes")
-                return imageBytes
+                return image_bytes
             else:
                 print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
-                print(f"Content-Type: {contentType}")
+                print(f"Content-Type: {content_type}")
                 return None
 
     except aiohttp.ClientResponseError as e:
@@ -102,55 +106,57 @@ async def fetchChallongeBracket(session: aiohttp.ClientSession, tournamentID: st
         print(f"[Connection Error] {e}")
         return None
 
-async def fetchLastUpdate(session: aiohttp.ClientSession, tournamentID: str) -> tuple[str | None, bool]:
+async def fetch_last_update(session: aiohttp.ClientSession, tournament_id: str) -> tuple[str | None, bool]:
+    """Get last update time and status of tournament (completed or not)"""
     # Find the hidden tournament id
-    hiddenID = await getTournamentID(session, tournamentID)
-    if not hiddenID:
-            hiddenID = tournamentID
+    hidden_id: str | None = await get_tournament_id(session, tournament_id)
+    if not hidden_id:
+            hidden_id = tournament_id
     
-    url = f"https://api.challonge.com/v1/tournaments/{hiddenID}.json"
-    params = {
+    url: str = f"https://api.challonge.com/v1/tournaments/{hidden_id}.json"
+    PARAMS: dict[str, Any] = {
         "api_key": CHALLONGE_API_KEY,
         "include_matches": 0,
         "include_participants": 0
     }
 
     try:
-        async with session.get(url, params=params) as response:
+        async with session.get(url, params=PARAMS) as response:
             response.raise_for_status()
-            data = await response.json()
+            data: dict[str, Any] = await response.json()
 
-            tournament = data['tournament']
-            lastUpdate = tournament['updated_at']
-            state = tournament['state']
-            isFinished = (state == "complete") or (state == "awaiting_review")
+            tournament: dict[str, Any] = data['tournament']
+            last_update: str = tournament['updated_at']
+            state: str = tournament['state']
+            is_finished: bool = state in ("complete", "awaiting_review")
 
-            return lastUpdate, isFinished
+            return last_update, is_finished
             
     except Exception as e:
         print(f"[Error Fetching Data] {e}")
         return None, False
 
-async def editSvg(content: bytes, padding: int = 40) -> bytes:
+async def edit_svg(content: bytes, padding: int = 40) -> bytes:
+    """Convert svg from website into bytes"""
     print("[xml] Editing SVG file")
 
     # Register namespaces to prevent 'ns0' prefixes in output
     ET.register_namespace("", "http://www.w3.org/2000/svg")
     ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-    treeRoot = ET.fromstring(content)
+    tree_root = ET.fromstring(content)
 
-    headerOffset = 110 # Challonge header
-    matchCardHeight = 55 # Height of one bracket node
-    matchCardWidth = 220 # Width of one bracket node
+    HEADER_OFFSET = 110 # Challonge header
+    MATCH_CARD_HEIGHT = 55 # Height of one bracket node
+    MATCH_CARD_WIDTH = 220 # Width of one bracket node
     
-    maxX = 0
-    maxY = 0
-    isFound = False
+    max_x: float = 0
+    max_y: float = 0
+    is_found: bool = False
 
     # Regex to pull coordinates from strings
     translate_pattern = re.compile(r"translate\(\s*([\d.]+)[ ,]+([\d.]+)\s*\)")
 
-    for elem in treeRoot.iter():
+    for elem in tree_root.iter():
         transform = elem.get('transform')
         if transform:
             match = translate_pattern.search(transform)
@@ -158,75 +164,75 @@ async def editSvg(content: bytes, padding: int = 40) -> bytes:
                 y = float(match.group(1))
                 x = float(match.group(2))
                 
-                if x > maxX: maxX = x
-                if y > maxY: maxY = y
-                isFound = True
+                if x > max_x: max_x = x
+                if y > max_y: max_y = y
+                is_found = True
 
     # Calculate new dimensions based on findings
-    if isFound:
+    if is_found:
         # Content Height = Header + Lowest Match Y + Match Height
-        contentHeight = headerOffset + maxY + matchCardHeight
+        content_height: float = HEADER_OFFSET + max_y + MATCH_CARD_HEIGHT
         
         # Content Width = Furthest Match X + Match Width
-        originalWidth = float(treeRoot.get('width', 0))
-        calculatedWidth = maxX + matchCardWidth
-        contentWidth = max(originalWidth, calculatedWidth)
+        original_width = float(tree_root.get('width', 0))
+        calculated_width: float = max_x + MATCH_CARD_WIDTH
+        content_width: float = max(original_width, calculated_width)
     else:
         # Fallback if parsing fails
-        contentWidth = float(treeRoot.get('width', 800))
-        contentHeight = float(treeRoot.get('height', 600))
+        content_width = float(tree_root.get('width', 800))
+        content_height = float(tree_root.get('height', 600))
 
     # Add padding
-    finalWidth = contentWidth + (padding * 2)
-    finalHeight = contentHeight + (padding * 1.5)
+    final_width: float = content_width + (padding * 2)
+    final_height: float = content_height + (padding * 1.5)
 
     # Update root attributes
-    treeRoot.set('width', str(finalWidth))
-    treeRoot.set('height', str(finalHeight))
-    treeRoot.set('viewBox', f"-{padding} -{padding} {finalWidth} {finalHeight}")
+    tree_root.set('width', str(final_width))
+    tree_root.set('height', str(final_height))
+    tree_root.set('viewBox', f"-{padding} -{padding} {final_width} {final_height}")
 
     # Add white background
     bg_rect = ET.Element('rect', {
         'x': f"-{padding}",
         'y': f"-{padding}",
-        'width': str(finalWidth),
-        'height': str(finalHeight),
+        'width': str(final_width),
+        'height': str(final_height),
         'fill': 'white'
     })
     
     # Insert at index 0 ensures it is in background
-    treeRoot.insert(0, bg_rect)
+    tree_root.insert(0, bg_rect)
 
-    return ET.tostring(treeRoot)
+    return ET.tostring(tree_root)
 
-# Check for update, then update only when necessary
-async def getLatestBracket(tournamentID: str) -> tuple[bytes | None, bool]:
-    global lastUpdate
-    async with aiohttp.ClientSession(headers=headers) as session:
-        updateTime, isComplete = await fetchLastUpdate(session, tournamentID)
+async def get_latest_bracket(tournament_id: str) -> tuple[bytes | None, bool]:
+    """Check for update, then update the bracket only when necessary"""
+    global last_update
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        update_time, is_complete = await fetch_last_update(session, tournament_id)
 
-        if (lastUpdate == updateTime):
+        if (last_update == update_time):
             print("[bracket_drawer] No update needed.")
-            return None, isComplete
+            return None, is_complete
         
-        print(f"[bracket_drawer] Update found for {tournamentID}.")
+        print(f"[bracket_drawer] Update found for {tournament_id}.")
         
-        # Update lastUpdate
-        lastUpdate = updateTime
-        userData["lastUpdate"] = updateTime
-        saveJson(userData)
+        # Update last_update
+        last_update = update_time
+        user_data["last_update"] = update_time
+        save_json(user_data)
 
-        return await fetchChallongeBracket(session, tournamentID), isComplete
+        return await fetch_challonge_bracket(session, tournament_id), is_complete
 
 async def main():
-    async with aiohttp.ClientSession(headers=headers) as session:
-        bracketId = input("Enter Bracket ID: ").strip()
-        await fetchChallongeBracket(session, bracketId)
-        updateTime, isComplete = await fetchLastUpdate(session, bracketId)
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        bracket_id = input("Enter Bracket ID: ").strip()
+        await fetch_challonge_bracket(session, bracket_id)
+        update_time, is_complete = await fetch_last_update(session, bracket_id)
 
-        if lastUpdate:
-            print(f"Last Updated: {lastUpdate}")
-            print(f"Completed: {isComplete}")
+        if last_update:
+            print(f"Last Updated: {update_time}")
+            print(f"Completed: {is_complete}")
 
 if __name__ == "__main__":
     try:
