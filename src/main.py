@@ -26,10 +26,13 @@ class DiscordBot(commands.Bot):
         self.user_data: dict[str, Any] = load_json()
         self.bracket_id: str | None = self.user_data.get("bracket_id")
         self.last_channel_id: int | None = self.user_data.get("last_channel_id")
+        self.is_complete: bool = self.user_data.get("is_complete", True)
 
     async def setup_hook(self) -> None:
         """Start the 10-minute background loop"""
-        self.refresh_bracket_loop.start()
+        if not self.is_complete:
+            print(f"[System] Starting bracket loop for {self.bracket_id}...")
+            self.refresh_bracket_loop.start()
     
     async def update_and_send_bracket(self, channel: discord.abc.Messageable) -> None:
         """Logic to fetch SVG, convert, and send to Discord"""
@@ -40,7 +43,21 @@ class DiscordBot(commands.Bot):
             image_bytes, is_complete = await get_latest_bracket(self.bracket_id)
 
             if is_complete:
-                print(f"[Challonge Snap] Tournament {self.bracket_id} is finished. Stopping loop.")
+                print(f"[Challonge Snap] Tournament {self.bracket_id} finished.")
+
+                # Update internal state
+                self.is_complete = True
+                self.bracket_id = None
+                self.last_channel_id = None
+                
+                # Update and save JSON
+                self.user_data.update({
+                    "bracket_id": None,
+                    "last_channel_id": None,
+                    "is_complete": True
+                })
+                save_json(self.user_data)
+
                 self.refresh_bracket_loop.stop()
                 return
             
@@ -68,12 +85,17 @@ class DiscordBot(commands.Bot):
             return
         
         channel = self.get_channel(self.last_channel_id)
+        if not channel:
+            try:
+                channel = await self.fetch_channel(self.last_channel_id)
+            except discord.NotFound:
+                print(f"[Error] Channel {self.last_channel_id} no longer exists.")
+                self.refresh_bracket_loop.stop()
+                return
 
         if isinstance(channel, discord.abc.Messageable):
             print(f"[Challonge Snap] Auto-refreshing bracket: {self.bracket_id}")
             await self.update_and_send_bracket(channel)
-        else:
-            print(f"[Warning] Channel {self.last_channel_id} is not messageable or not found.")
 
     @refresh_bracket_loop.before_loop
     async def before_refresh_loop(self) -> None:
