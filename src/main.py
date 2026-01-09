@@ -40,6 +40,8 @@ class DiscordBot(commands.Bot):
             image_bytes, is_complete = await get_latest_bracket(self.bracket_id)
 
             if is_complete:
+                print(f"[Challonge Snap] Tournament {self.bracket_id} is finished. Stopping loop.")
+                self.refresh_bracket_loop.stop()
                 return
             
             if image_bytes:
@@ -76,6 +78,10 @@ class DiscordBot(commands.Bot):
     @refresh_bracket_loop.before_loop
     async def before_refresh_loop(self) -> None:
         await self.wait_until_ready()
+
+    async def close(self) -> None:
+        self.refresh_bracket_loop.stop()
+        await super().close()
 
 # Initialize bot
 bot = DiscordBot()
