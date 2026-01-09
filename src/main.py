@@ -14,6 +14,58 @@ from bracket_drawer import get_latest_bracket
 load_dotenv()
 DISCORD_BOT_TOKEN: str | None = os.getenv('DISCORD_BOT_TOKEN')
 
+class TournamentCog(commands.Cog):
+    def __init__(self, bot: "DiscordBot"):
+        self.bot = bot
+
+    # Slash Command: /bracket
+    @app_commands.command(name="bracket", description="Choose which bracket to draw from")
+    @app_commands.describe(id="ID of the bracket")
+    async def bracket(self, interaction: discord.Interaction, id: str):
+        if not interaction.channel or not isinstance(interaction.channel, discord.abc.Messageable):
+            await interaction.response.send_message("Use this in a text channel.", ephemeral=True)
+            return
+
+        # Update internal state
+        self.bot.bracket_id = id
+        self.bot.last_channel_id = interaction.channel_id
+        self.bot.is_complete = False
+        
+        # Update and save JSON
+        self.bot.user_data.update({
+            "bracket_id": self.bot.bracket_id ,
+            "last_channel_id": self.bot.last_channel_id,
+            "is_complete": self.bot.is_complete
+        })
+        save_json(self.bot.user_data)
+
+        # Start the loop
+        if self.bot.refresh_bracket_loop.is_running():
+            self.bot.refresh_bracket_loop.restart()
+        else:
+            self.bot.refresh_bracket_loop.start()
+
+        await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg")
+
+        # Immediately send first bracket
+        await self.bot.update_and_send_bracket(interaction.channel)
+
+    # Slash Command: /info
+    @app_commands.command(name="info", description="Get tracking info")
+    async def info(self, interaction: discord.Interaction):
+        if self.bot.bracket_id:
+            await interaction.response.send_message(f"Currently tracking: https://challonge.com/{self.bot.bracket_id}.svg")
+        else:
+            await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.")
+
+    # Prefix Command: c!update -> Update discord slash commands
+    @commands.command(name="update")
+    async def update(self, ctx: commands.Context):
+        print("[c!update] Syncing slash commands...")
+        # Since 'tree' belongs to the bot, we use self.bot.tree
+        await self.bot.tree.sync() 
+        await ctx.send("Slash commands updated!")
+
 class DiscordBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -52,9 +104,9 @@ class DiscordBot(commands.Bot):
                 
                 # Update and save JSON
                 self.user_data.update({
-                    "bracket_id": None,
-                    "last_channel_id": None,
-                    "is_complete": True
+                    "bracket_id": self.bracket_id ,
+                    "last_channel_id": self.last_channel_id,
+                    "is_complete": self.is_complete
                 })
                 save_json(self.user_data)
 
@@ -107,41 +159,6 @@ class DiscordBot(commands.Bot):
 
 # Initialize bot
 bot = DiscordBot()
-
-# Slash Command: /bracket
-@bot.tree.command(name="bracket", description="Choose which bracket to draw from")
-@app_commands.describe(id="ID of the bracket")
-async def bracket(interaction: discord.Interaction, id: str):
-    client: DiscordBot = interaction.client # type: ignore
-
-    # Update internal state
-    client.bracket_id = id
-    client.last_channel_id = interaction.channel_id
-    
-    # Update and save JSON
-    client.user_data["bracket_id"] = id
-    client.user_data["last_channel_id"] = interaction.channel_id
-    save_json(client.user_data)
-
-    await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg")
-
-# Slash Command: /info
-@bot.tree.command(name="info", description="Get current bracket that the bot is drawing from")
-async def info(interaction: discord.Interaction):
-    client: DiscordBot = interaction.client # type: ignore
-
-    if client.bracket_id:
-        await interaction.response.send_message(f"Currently tracking: https://challonge.com/{client.bracket_id}.svg")
-    else:
-        await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.")
-
-# Prefix Command: c!update -> Update discord slash commands
-@bot.command()
-async def update(ctx: commands.Context):
-    print("[c!update] Updating commands...")
-
-    await bot.tree.sync()
-    await ctx.send("Slash commands updated!")
 
 # Run the bot
 if DISCORD_BOT_TOKEN:
