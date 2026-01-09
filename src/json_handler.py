@@ -17,3 +17,4 @@ def save_json(data: dict[str, Any]) -> None:
     """Saves the provided dictionary to the JSON file."""
     with open(DATA_JSON, "w") as f:
         json.dump(data, f, indent=4)
+        f.flush()

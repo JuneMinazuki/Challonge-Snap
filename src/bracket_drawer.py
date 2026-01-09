@@ -16,7 +16,7 @@ CHALLONGE_API_KEY: str | None = os.getenv('CHALLONGE_API_KEY')
 
 # Get last_update
 user_data: dict[str, Any] = load_json()
-last_update: str | None = user_data.get("last_update", "")
+last_update: str | None = user_data.get("last_update")
 
 # Headers are crucial to avoid 403 Forbidden errors from Challonge
 HEADERS: dict[str, str] = {
@@ -218,6 +218,7 @@ async def get_latest_bracket(tournament_id: str) -> tuple[bytes | None, bool]:
         print(f"[bracket_drawer] Update found for {tournament_id}.")
         
         # Update last_update
+        user_data: dict[str, Any] = load_json()
         last_update = update_time
         user_data["last_update"] = update_time
         save_json(user_data)

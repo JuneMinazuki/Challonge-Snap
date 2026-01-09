@@ -32,6 +32,7 @@ class TournamentCog(commands.Cog):
         self.bot.is_complete = False
         
         # Update and save JSON
+        self.bot.user_data = load_json()
         self.bot.user_data.update({
             "bracket_id": self.bot.bracket_id ,
             "last_channel_id": self.bot.last_channel_id,
@@ -46,9 +47,6 @@ class TournamentCog(commands.Cog):
             self.bot.refresh_bracket_loop.start()
 
         await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg")
-
-        # Immediately send first bracket
-        await self.bot.update_and_send_bracket(interaction.channel)
 
     # Slash Command: /info
     @app_commands.command(name="info", description="Get tracking info")
@@ -82,6 +80,8 @@ class DiscordBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         """Start the 10-minute background loop"""
+        await self.add_cog(TournamentCog(self))
+
         if not self.is_complete:
             print(f"[System] Starting bracket loop for {self.bracket_id}...")
             self.refresh_bracket_loop.start()
@@ -103,6 +103,7 @@ class DiscordBot(commands.Bot):
                 self.last_channel_id = None
                 
                 # Update and save JSON
+                self.user_data = load_json()
                 self.user_data.update({
                     "bracket_id": self.bracket_id ,
                     "last_channel_id": self.last_channel_id,
@@ -129,7 +130,7 @@ class DiscordBot(commands.Bot):
         print(f'ID: {bot.user.id}') # type: ignore
         print(f'--------------------------------')
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(seconds=30)
     async def refresh_bracket_loop(self) -> None:
         """Refresh the bracket every 10 minutes"""
         # Check if there is a bracket id and channel id
