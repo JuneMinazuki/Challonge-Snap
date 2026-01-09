@@ -130,7 +130,7 @@ class DiscordBot(commands.Bot):
         print(f'ID: {bot.user.id}') # type: ignore
         print(f'--------------------------------')
 
-    @tasks.loop(seconds=30)
+    @tasks.loop(minutes=10)
     async def refresh_bracket_loop(self) -> None:
         """Refresh the bracket every 10 minutes"""
         # Check if there is a bracket id and channel id

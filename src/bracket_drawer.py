@@ -88,7 +88,8 @@ async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id:
                 # Convert svg to bytes
                 image_bytes: bytes | None = await asyncio.to_thread(
                     cairosvg.svg2png, 
-                    bytestring=edited_content
+                    bytestring=edited_content,
+                    scale=2
                 )
                 
                 print(f"[cairosvg] Image sucessfully convert to bytes")
@@ -161,8 +162,8 @@ async def edit_svg(content: bytes, padding: int = 40) -> bytes:
         if transform:
             match = translate_pattern.search(transform)
             if match:
-                y = float(match.group(1))
-                x = float(match.group(2))
+                x = float(match.group(1))
+                y = float(match.group(2))
                 
                 if x > max_x: max_x = x
                 if y > max_y: max_y = y
