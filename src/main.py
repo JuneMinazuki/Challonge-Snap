@@ -32,7 +32,6 @@ class TournamentCog(commands.Cog):
         self.bot.is_complete = False
         
         # Update and save JSON
-        self.bot.user_data = load_json()
         self.bot.user_data.update({
             "bracket_id": self.bot.bracket_id ,
             "last_channel_id": self.bot.last_channel_id,
@@ -77,6 +76,7 @@ class DiscordBot(commands.Bot):
         self.bracket_id: str | None = self.user_data.get("bracket_id")
         self.last_channel_id: int | None = self.user_data.get("last_channel_id")
         self.is_complete: bool = self.user_data.get("is_complete", True)
+        self.msg_id: int | None = self.user_data.get("last_message_id")
 
     async def setup_hook(self) -> None:
         """Start the 10-minute background loop"""
@@ -103,7 +103,6 @@ class DiscordBot(commands.Bot):
                 self.last_channel_id = None
                 
                 # Update and save JSON
-                self.user_data = load_json()
                 self.user_data.update({
                     "bracket_id": self.bracket_id ,
                     "last_channel_id": self.last_channel_id,
@@ -117,7 +116,24 @@ class DiscordBot(commands.Bot):
             if image_bytes:
                 with io.BytesIO(image_bytes) as image_binary:
                     file = discord.File(fp=image_binary, filename="bracket.png")
-                    await channel.send(file=file)
+                    last_msg: discord.Message | None = None
+
+                    if self.msg_id:
+                        try:
+                            last_msg = await channel.fetch_message(self.msg_id)
+                        except discord.NotFound:
+                            last_msg = None # Message was deleted, send new message
+
+                    if last_msg:
+                        await last_msg.edit(attachments=[file]) # Edit existing message with the new image
+                    else:
+                        # Send new message and save message ID
+                        new_msg = await channel.send(file=file)
+                        self.msg_id = new_msg.id
+
+                        # Update json
+                        self.user_data["last_message_id"] = self.msg_id
+                        save_json(self.user_data)
             else:
                 print(f"[Challonge Snap] No updates for {self.bracket_id}")
         except Exception as e:
@@ -130,7 +146,7 @@ class DiscordBot(commands.Bot):
         print(f'ID: {bot.user.id}') # type: ignore
         print(f'--------------------------------')
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=15)
     async def refresh_bracket_loop(self) -> None:
         """Refresh the bracket every 10 minutes"""
         # Check if there is a bracket id and channel id

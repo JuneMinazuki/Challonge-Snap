@@ -219,7 +219,6 @@ async def get_latest_bracket(tournament_id: str) -> tuple[bytes | None, bool]:
         print(f"[bracket_drawer] Update found for {tournament_id}.")
         
         # Update last_update
-        user_data: dict[str, Any] = load_json()
         last_update = update_time
         user_data["last_update"] = update_time
         save_json(user_data)
