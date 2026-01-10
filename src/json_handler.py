@@ -13,8 +13,12 @@ def load_json() -> dict[str, Any]:
     else:
         return {}
 
-def save_json(data: dict[str, Any]) -> None:
+def save_json(new_data: dict[str, Any]) -> None:
     """Saves the provided dictionary to the JSON file."""
+    data: dict[str, Any] = load_json() # Load existing json
+    data.update(new_data) # Update dict with new data
+    
+    # Save the updated dictionary back to the file
     with open(DATA_JSON, "w") as f:
         json.dump(data, f, indent=4)
         f.flush()
