@@ -45,15 +45,15 @@ class TournamentCog(commands.Cog):
         else:
             self.bot.refresh_bracket_loop.start()
 
-        await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg")
+        await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg", ephemeral=True)
 
     # Slash Command: /info
     @app_commands.command(name="info", description="Get tracking info")
     async def info(self, interaction: discord.Interaction):
         if self.bot.bracket_id:
-            await interaction.response.send_message(f"Currently tracking: https://challonge.com/{self.bot.bracket_id}.svg")
+            await interaction.response.send_message(f"Currently tracking: https://challonge.com/{self.bot.bracket_id}.svg", ephemeral=True)
         else:
-            await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.")
+            await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.", ephemeral=True)
 
     # Prefix Command: c!update -> Update discord slash commands
     @commands.command(name="update")
