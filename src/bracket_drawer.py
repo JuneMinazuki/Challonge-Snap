@@ -175,9 +175,7 @@ async def edit_svg(content: bytes, padding: int = 40) -> bytes:
         content_height: float = HEADER_OFFSET + max_y + MATCH_CARD_HEIGHT
         
         # Content Width = Furthest Match X + Match Width
-        original_width = float(tree_root.get('width', 0))
-        calculated_width: float = max_x + MATCH_CARD_WIDTH
-        content_width: float = max(original_width, calculated_width)
+        content_width: float = max_x + MATCH_CARD_WIDTH
     else:
         # Fallback if parsing fails
         content_width = float(tree_root.get('width', 800))
