@@ -1,5 +1,7 @@
 import os
 import io
+import time
+from datetime import datetime
 from typing import Any
 
 import discord
@@ -114,6 +116,10 @@ class DiscordBot(commands.Bot):
                 return
             
             if image_bytes:
+                # Get current time 
+                current_time: str = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+                current_time_text: str = f"-# Last update: {current_time}"
+
                 with io.BytesIO(image_bytes) as image_binary:
                     file = discord.File(fp=image_binary, filename="bracket.png")
                     last_msg: discord.Message | None = None
@@ -125,10 +131,10 @@ class DiscordBot(commands.Bot):
                             last_msg = None # Message was deleted, send new message
 
                     if last_msg:
-                        await last_msg.edit(attachments=[file]) # Edit existing message with the new image
+                        await last_msg.edit(content=current_time_text, attachments=[file]) # Edit existing message with the new image
                     else:
                         # Send new message and save message ID
-                        new_msg = await channel.send(file=file)
+                        new_msg = await channel.send(content=current_time_text, file=file)
                         self.msg_id = new_msg.id
 
                         # Update json
