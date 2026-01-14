@@ -57,9 +57,19 @@ class TournamentCog(commands.Cog):
         else:
             await interaction.response.send_message("No bracket is currently being tracked. Use `/bracket` to set one.", ephemeral=True)
 
-    # Prefix Command: c!update -> Update discord slash commands
-    @commands.command(name="update")
-    async def update(self, ctx: commands.Context):
+    # Slash Command: /update
+    @app_commands.command(name="update", description="Update the bracket immediately")
+    async def update(self, interaction: discord.Interaction):
+        if not self.bot.bracket_id:
+            await interaction.response.send_message("No bracket is currently being tracked.", ephemeral=True)
+            return
+        
+        self.bot.refresh_bracket_loop.restart()
+        await interaction.response.send_message("Bracket updated", ephemeral=True)
+
+    # Prefix Command: c!sync -> Update discord slash commands
+    @commands.command(name="sync")
+    async def sync(self, ctx: commands.Context):
         print("[c!update] Syncing slash commands...")
         # Since 'tree' belongs to the bot, we use self.bot.tree
         await self.bot.tree.sync() 
