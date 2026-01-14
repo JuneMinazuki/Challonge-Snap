@@ -69,11 +69,30 @@ class TournamentCog(commands.Cog):
 
     # Prefix Command: c!sync -> Update discord slash commands
     @commands.command(name="sync")
-    async def sync(self, ctx: commands.Context):
-        print("[c!update] Syncing slash commands...")
-        # Since 'tree' belongs to the bot, we use self.bot.tree
-        await self.bot.tree.sync() 
-        await ctx.send("Slash commands updated!")
+    @commands.is_owner()
+    async def sync(self, ctx: commands.Context, spec: str | None = None):
+        if ctx.guild is None:
+            await ctx.send("This command must be used in a server.")
+            return
+
+        if spec == "guild":
+            # Syncs commands only to the current server
+            print("[c!sync] Syncing slash commands...")
+            self.bot.tree.copy_global_to(guild = ctx.guild)
+            synced = await self.bot.tree.sync(guild = ctx.guild)
+            await ctx.send(f"Synced {len(synced)} commands to this server.")
+            
+        elif spec == "clear":
+            # Clears all commands from server
+            print("[c!sync] Clearing slash commands...")
+            self.bot.tree.clear_commands(guild=ctx.guild)
+            await self.bot.tree.sync(guild=ctx.guild)
+            await ctx.send("Guild commands cleared.")
+
+        else:
+            # Syncs commands globally 
+            synced = await self.bot.tree.sync()
+            await ctx.send(f"Synced {len(synced)} commands globally.")
 
 class DiscordBot(commands.Bot):
     def __init__(self):
