@@ -124,25 +124,6 @@ class DiscordBot(commands.Bot):
 
         try:
             image_bytes, is_complete = await get_latest_bracket(self.bracket_id)
-
-            if is_complete:
-                print(f"[Challonge Snap] Tournament {self.bracket_id} finished.")
-
-                # Update internal state
-                self.is_complete = True
-                self.bracket_id = None
-                self.last_channel_id = None
-                
-                # Update and save JSON
-                self.user_data.update({
-                    "bracket_id": self.bracket_id ,
-                    "last_channel_id": self.last_channel_id,
-                    "is_complete": self.is_complete
-                })
-                save_json(self.user_data)
-
-                self.refresh_bracket_loop.stop()
-                return
             
             if image_bytes:
                 # Get current time 
@@ -171,6 +152,28 @@ class DiscordBot(commands.Bot):
                         save_json(self.user_data)
             else:
                 print(f"[Challonge Snap] No updates for {self.bracket_id}")
+
+            if is_complete:
+                print(f"[Challonge Snap] Tournament {self.bracket_id} finished.")
+
+                # Update internal state
+                self.is_complete = True
+                self.bracket_id = None
+                self.last_channel_id = None
+                self.msg_id = None
+                
+                # Update and save JSON
+                self.user_data.update({
+                    "bracket_id": self.bracket_id ,
+                    "last_channel_id": self.last_channel_id,
+                    "is_complete": self.is_complete,
+                    "last_message_id": self.msg_id
+                })
+                save_json(self.user_data)
+
+                self.refresh_bracket_loop.stop()
+                return
+            
         except Exception as e:
             print(f"[Error] Failed to update bracket: {e}")
 
