@@ -15,6 +15,7 @@ from bracket_drawer import get_latest_bracket
 # Load the token from the .env file
 load_dotenv()
 DISCORD_BOT_TOKEN: str | None = os.getenv('DISCORD_BOT_TOKEN')
+CHALLONGE_API_KEY: str | None = os.getenv('CHALLONGE_API_KEY')
 
 class TournamentCog(commands.Cog):
     def __init__(self, bot: "DiscordBot"):
@@ -113,7 +114,7 @@ class DiscordBot(commands.Bot):
         """Start the 10-minute background loop"""
         await self.add_cog(TournamentCog(self))
 
-        if not self.is_complete:
+        if (not self.is_complete) and (CHALLONGE_API_KEY):
             print(f"[System] Starting bracket loop for {self.bracket_id}...")
             self.refresh_bracket_loop.start()
     

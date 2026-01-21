@@ -23,7 +23,7 @@
 <h2 id="features">✨ Features</h2>
 
 1. **Real-time Rendering:** Converts live Challonge data into a clean image format.
-2. **Auto-Update:** Automatically refreshes the bracket image in Discord when scores are reported.
+2. **Auto-Update:** Automatically refreshes the bracket image in Discord when scores are reported. **Note:** Auto-update function only work with a Challonge API given.
 3. **Tournament Support:** Works with Single Elim, Double Elim, Swiss Stage and Round Robin formats.
 4. **Simple Commands:** Minimalistic setup for tournament organizers.
 
@@ -39,21 +39,22 @@ The bot uses **Slash Commands**. Ensure the bot has `Use Application Commands` p
 
 <h2 id="requirements">📋 Requirements</h2>
 
-1. **Challonge API Key:** Obtainable from your [Challonge Settings](https://challonge.com/settings/developer)
-2. **Discord Bot Token:** Create one via the [Discord Developer Portal](https://discord.com/developers/applications)
-3. **Environment:** Python 3.14+
+1. **Discord Bot Token:** Create one via the [Discord Developer Portal](https://discord.com/developers/applications)
+2. **Environment:** Python 3.14+
+
+**Optional:**
+1. **Challonge API Key:** Obtainable from your [Challonge Settings](https://challonge.com/settings/developer) (Required for auto-update feature)
 
 <h2 id="permissions">🛡️ Permissions</h2>
 
 To function correctly with all features, the bot requires the following permissions as configured in the Discord Developer Portal:
 
 - View Channels
+- Send Messages
+- Send Messages in Threads
 - Manage Messages
-- Read Message History
-- Send Messages (including Threads)
-- Embed Links
 - Attach Files
-- Use Application Commands
+- Read Message History
 
 <h2 id="contributing">🤝 Contributing</h2>
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create.
@@ -65,4 +66,5 @@ Contributions are what make the open-source community such an amazing place to l
 5. Open a **Pull Request**.
 
 <h2 id="license">📄 License</h2>
+
 Distributed under the **MIT License**. See `LICENSE` for more information.
