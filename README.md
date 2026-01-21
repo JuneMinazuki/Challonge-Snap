@@ -45,6 +45,30 @@ The bot uses **Slash Commands**. Ensure the bot has `Use Application Commands` p
 **Optional:**
 1. **Challonge API Key:** Obtainable from your [Challonge Settings](https://challonge.com/settings/developer) (Required for auto-update feature)
 
+<h2 id="setup-and-deployment">⚙️ Setup and Deployment</h2>
+
+1. **Clone the Repository**
+```Bash
+git clone https://github.com/JuneMinazuki/Challonge-Snap.git
+cd Challonge-Snap
+```
+
+2. **Install Dependencies**
+```Bash
+pip install -r requirements.txt
+```
+
+3. **Environment Configuration: Create a file named `.env` in the root folder:**
+```Code snippet
+DISCORD_BOT_TOKEN=your_discord_token_here
+CHALLONGE_API_KEY=your_challonge_api_key_here
+```
+
+4. Launch the Bot
+```Bash
+python main.py
+```
+
 <h2 id="permissions">🛡️ Permissions</h2>
 
 To function correctly with all features, the bot requires the following permissions as configured in the Discord Developer Portal:
