@@ -1,6 +1,5 @@
 import os
 import io
-import time
 from datetime import datetime
 from typing import Any
 
@@ -67,6 +66,26 @@ class TournamentCog(commands.Cog):
         
         self.bot.refresh_bracket_loop.restart()
         await interaction.response.send_message("Bracket updated", ephemeral=True)
+
+    # Slash Command: /clear
+    @app_commands.command(name="clear", description="Clear bot data and stop tracking bracket")
+    async def clear(self, interaction: discord.Interaction):
+        # Update internal state
+        self.bot.bracket_id = None
+        self.bot.last_channel_id = None
+        self.bot.is_complete = True
+        self.bot.msg_id = None
+
+        # Update and save JSON
+        self.bot.user_data.update({
+            "bracket_id": self.bot.bracket_id ,
+            "last_channel_id": self.bot.last_channel_id,
+            "is_complete": self.bot.is_complete,
+            "last_message_id": self.bot.msg_id
+        })
+        save_json(self.bot.user_data)
+
+        await interaction.response.send_message("Data clear!", ephemeral=True)
 
     # Prefix Command: c!sync -> Update discord slash commands
     @commands.command(name="sync")
