@@ -24,6 +24,8 @@ class TournamentCog(commands.Cog):
     @app_commands.command(name="bracket", description="Choose which bracket to draw from")
     @app_commands.describe(id="ID of the bracket")
     async def bracket(self, interaction: discord.Interaction, id: str):
+        await interaction.response.defer(ephemeral=True)
+        
         if not interaction.channel or not isinstance(interaction.channel, discord.abc.Messageable):
             await interaction.response.send_message("Use this in a text channel.", ephemeral=True)
             return
@@ -41,13 +43,18 @@ class TournamentCog(commands.Cog):
         })
         save_json(self.bot.user_data)
 
+        try:
+            await self.bot.update_and_send_bracket(interaction.channel)
+            await interaction.followup.send(f"Now tracking: https://challonge.com/{id}", ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"Error tracking bracket: {e}", ephemeral=True)
+
         # Start the loop
         if self.bot.refresh_bracket_loop.is_running():
             self.bot.refresh_bracket_loop.restart()
         else:
             self.bot.refresh_bracket_loop.start()
-
-        await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg", ephemeral=True)
 
     # Slash Command: /info
     @app_commands.command(name="info", description="Get tracking info")
@@ -70,6 +77,8 @@ class TournamentCog(commands.Cog):
     # Slash Command: /clear
     @app_commands.command(name="clear", description="Clear bot data and stop tracking bracket")
     async def clear(self, interaction: discord.Interaction):
+        print("[/clear] Clearing data.json")
+        
         # Update internal state
         self.bot.bracket_id = None
         self.bot.last_channel_id = None
