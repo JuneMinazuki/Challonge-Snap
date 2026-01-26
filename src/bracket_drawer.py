@@ -38,6 +38,9 @@ async def get_tournament_id(session: aiohttp.ClientSession, tournament_id: str) 
     url: str = f"https://challonge.com/{tournament_id}"
     print(f"[aiohttp] Looking up ID from public page: {url}")
 
+    async with session.get("https://challonge.com/") as resp:
+        await resp.text()
+
     try:
         async with session.get(url) as response:
             if response.status != 200:
@@ -65,6 +68,9 @@ async def get_tournament_id(session: aiohttp.ClientSession, tournament_id: str) 
 async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id: str) -> bytes | None:
     """Draw the challonge bracket"""
     url: str = f"https://challonge.com/{tournament_id}.svg"
+
+    async with session.get("https://challonge.com/") as resp:
+        await resp.text()
 
     print(f"[aiohttp] Attempting to fetch: {url}")
 
