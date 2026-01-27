@@ -8,6 +8,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
+import colorlog
 
 from json_handler import load_json, save_json
 from bracket_drawer import get_latest_bracket
@@ -16,14 +17,31 @@ from bracket_drawer import get_latest_bracket
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
+# Setup color formater
+color_formatter = colorlog.ColoredFormatter(
+    fmt='%(black)s%(asctime)s %(log_color)s%(levelname)-8s %(reset)s%(blue)s%(name)-15s %(reset)s%(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    log_colors={
+        'DEBUG':    'cyan',
+        'INFO':     'green',
+        'WARNING':  'yellow',
+        'ERROR':    'red',
+        'CRITICAL': 'red,bg_white',
+    }
+)
+
+# Setup stream handler
+stream_handler = colorlog.StreamHandler()
+stream_handler.setFormatter(color_formatter)
+
+# Setup file handler
+file_handler = logging.FileHandler(filename='logs/challonge-snap.log', encoding='utf-8', mode='w')
+file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-8s %(name)-15s %(message)s'))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(levelname)-8s %(name)-15s %(message)s',
-    handlers=[
-        logging.FileHandler(filename='logs/challonge-snap.log', encoding='utf-8', mode='w'),
-        logging.StreamHandler()
-    ]
+    handlers=[stream_handler, file_handler]
 )
 logger = logging.getLogger('challonge-snap')
 
