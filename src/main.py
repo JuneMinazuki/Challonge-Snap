@@ -2,6 +2,7 @@ import os
 import io
 from datetime import datetime
 from typing import Any
+import logging
 
 import discord
 from discord.ext import commands, tasks
@@ -10,6 +11,17 @@ from dotenv import load_dotenv
 
 from json_handler import load_json, save_json
 from bracket_drawer import get_latest_bracket
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
+    handlers=[
+        logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('challonge-snap')
 
 # Load the token from the .env file
 load_dotenv()
