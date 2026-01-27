@@ -78,6 +78,10 @@ class TournamentCog(commands.Cog):
     @app_commands.command(name="clear", description="Clear bot data and stop tracking bracket")
     async def clear(self, interaction: discord.Interaction):
         print("[/clear] Clearing data.json")
+
+        # Stop the loop
+        if self.bot.refresh_bracket_loop.is_running():
+            self.bot.refresh_bracket_loop.cancel()
         
         # Update internal state
         self.bot.bracket_id = None
