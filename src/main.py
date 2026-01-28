@@ -3,6 +3,7 @@ import io
 from datetime import datetime
 from typing import Any
 import logging
+from urllib.parse import urlparse
 
 import discord
 from discord.ext import commands, tasks
@@ -54,6 +55,15 @@ class TournamentCog(commands.Cog):
     def __init__(self, bot: "DiscordBot"):
         self.bot = bot
 
+    @staticmethod
+    def extract_bracket_id(url: str) -> str:
+        """
+        Takes a raw string (ID or URL) and returns only the ID segment.
+        """
+
+        path = urlparse(url).path or urlparse(url).netloc
+        return path.rstrip('/').split('/')[-1]
+
     # Slash Command: /bracket
     @app_commands.command(name="bracket", description="Choose which bracket to draw from")
     @app_commands.describe(id="ID of the bracket")
@@ -65,7 +75,8 @@ class TournamentCog(commands.Cog):
             return
 
         # Update internal state
-        self.bot.bracket_id = id
+        clean_id: str = self.extract_bracket_id(id)
+        self.bot.bracket_id = clean_id
         self.bot.last_channel_id = interaction.channel_id
         self.bot.is_complete = False
         
