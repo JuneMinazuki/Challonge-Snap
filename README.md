@@ -36,6 +36,7 @@ The bot uses **Slash Commands**. Ensure the bot has `Use Application Commands` p
 | `/bracket` | `/bracket <tournament_id>` | Fetches the Challonge bracket and posts the rendered bracket. |
 | `/info`    | `/info`                    | Get current active tournament ID.                             |
 | `/update`  | `/update`                  | Forces an immediate refresh of the currently active bracket.  |
+| `/clear`   | `/clear`                   | Clear all data and stop tracking any bracket.                 |
 
 <h2 id="requirements">📋 Requirements</h2>
 
