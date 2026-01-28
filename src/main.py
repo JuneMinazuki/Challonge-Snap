@@ -1,16 +1,49 @@
 import os
 import io
-import time
 from datetime import datetime
 from typing import Any
+import logging
 
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
+import colorlog
 
 from json_handler import load_json, save_json
 from bracket_drawer import get_latest_bracket
+
+# Create logs folder
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Setup color formater
+color_formatter = colorlog.ColoredFormatter(
+    fmt='%(black)s%(asctime)s %(log_color)s%(levelname)-8s %(reset)s%(blue)s%(name)-15s %(reset)s%(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    log_colors={
+        'DEBUG':    'cyan',
+        'INFO':     'green',
+        'WARNING':  'yellow',
+        'ERROR':    'red',
+        'CRITICAL': 'red,bg_white',
+    }
+)
+
+# Setup stream handler
+stream_handler = colorlog.StreamHandler()
+stream_handler.setFormatter(color_formatter)
+
+# Setup file handler
+file_handler = logging.FileHandler(filename='logs/challonge-snap.log', encoding='utf-8', mode='w')
+file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-8s %(name)-15s %(message)s'))
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[stream_handler, file_handler]
+)
+logger = logging.getLogger('challonge-snap')
 
 # Load the token from the .env file
 load_dotenv()
@@ -25,6 +58,8 @@ class TournamentCog(commands.Cog):
     @app_commands.command(name="bracket", description="Choose which bracket to draw from")
     @app_commands.describe(id="ID of the bracket")
     async def bracket(self, interaction: discord.Interaction, id: str):
+        await interaction.response.defer(ephemeral=True)
+        
         if not interaction.channel or not isinstance(interaction.channel, discord.abc.Messageable):
             await interaction.response.send_message("Use this in a text channel.", ephemeral=True)
             return
@@ -42,13 +77,18 @@ class TournamentCog(commands.Cog):
         })
         save_json(self.bot.user_data)
 
+        try:
+            await self.bot.update_and_send_bracket(interaction.channel)
+            await interaction.followup.send(f"Now tracking: https://challonge.com/{id}", ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"Error tracking bracket: {e}", ephemeral=True)
+
         # Start the loop
         if self.bot.refresh_bracket_loop.is_running():
             self.bot.refresh_bracket_loop.restart()
         else:
             self.bot.refresh_bracket_loop.start()
-
-        await interaction.response.send_message(f"Now tracking: https://challonge.com/{id}.svg", ephemeral=True)
 
     # Slash Command: /info
     @app_commands.command(name="info", description="Get tracking info")
@@ -68,6 +108,32 @@ class TournamentCog(commands.Cog):
         self.bot.refresh_bracket_loop.restart()
         await interaction.response.send_message("Bracket updated", ephemeral=True)
 
+    # Slash Command: /clear
+    @app_commands.command(name="clear", description="Clear bot data and stop tracking bracket")
+    async def clear(self, interaction: discord.Interaction):
+        logger.info("[/clear] Clearing data.json")
+
+        # Stop the loop
+        if self.bot.refresh_bracket_loop.is_running():
+            self.bot.refresh_bracket_loop.cancel()
+        
+        # Update internal state
+        self.bot.bracket_id = None
+        self.bot.last_channel_id = None
+        self.bot.is_complete = True
+        self.bot.msg_id = None
+
+        # Update and save JSON
+        self.bot.user_data.update({
+            "bracket_id": self.bot.bracket_id ,
+            "last_channel_id": self.bot.last_channel_id,
+            "is_complete": self.bot.is_complete,
+            "last_message_id": self.bot.msg_id
+        })
+        save_json(self.bot.user_data)
+
+        await interaction.response.send_message("Data clear!", ephemeral=True)
+
     # Prefix Command: c!sync -> Update discord slash commands
     @commands.command(name="sync")
     @commands.is_owner()
@@ -78,14 +144,14 @@ class TournamentCog(commands.Cog):
 
         if spec == "guild":
             # Syncs commands only to the current server
-            print("[c!sync] Syncing slash commands...")
+            logger.info("[c!sync] Syncing slash commands")
             self.bot.tree.copy_global_to(guild = ctx.guild)
             synced = await self.bot.tree.sync(guild = ctx.guild)
             await ctx.send(f"Synced {len(synced)} commands to this server.")
             
         elif spec == "clear":
             # Clears all commands from server
-            print("[c!sync] Clearing slash commands...")
+            logger.info("[c!sync] Clearing slash commands")
             self.bot.tree.clear_commands(guild=ctx.guild)
             await self.bot.tree.sync(guild=ctx.guild)
             await ctx.send("Guild commands cleared.")
@@ -115,7 +181,7 @@ class DiscordBot(commands.Bot):
         await self.add_cog(TournamentCog(self))
 
         if (not self.is_complete) and (CHALLONGE_API_KEY):
-            print(f"[System] Starting bracket loop for {self.bracket_id}...")
+            logger.info(f"Starting bracket loop for {self.bracket_id}")
             self.refresh_bracket_loop.start()
     
     async def update_and_send_bracket(self, channel: discord.abc.Messageable) -> None:
@@ -152,10 +218,10 @@ class DiscordBot(commands.Bot):
                         self.user_data["last_message_id"] = self.msg_id
                         save_json(self.user_data)
             else:
-                print(f"[Challonge Snap] No updates for {self.bracket_id}")
+                logger.info(f"No updates for {self.bracket_id}")
 
             if is_complete:
-                print(f"[Challonge Snap] Tournament {self.bracket_id} finished.")
+                logger.info(f"Tournament {self.bracket_id} finished")
 
                 # Update internal state
                 self.is_complete = True
@@ -176,14 +242,11 @@ class DiscordBot(commands.Bot):
                 return
             
         except Exception as e:
-            print(f"[Error] Failed to update bracket: {e}")
+            logger.error(f"Failed to update bracket: {e}")
 
     async def on_ready(self) -> None:
         """Event: Runs when the bot successfully connects"""
-        print(f'--------------------------------')
-        print(f'Logged in as: {bot.user.name}') # type: ignore
-        print(f'ID: {bot.user.id}') # type: ignore
-        print(f'--------------------------------')
+        logger.info(f"{bot.user.name} (ID: {bot.user.id}) successfully connects") # type: ignore
 
     @tasks.loop(minutes=15)
     async def refresh_bracket_loop(self) -> None:
@@ -197,12 +260,12 @@ class DiscordBot(commands.Bot):
             try:
                 channel = await self.fetch_channel(self.last_channel_id)
             except discord.NotFound:
-                print(f"[Error] Channel {self.last_channel_id} no longer exists.")
+                logger.warning(f"Channel {self.last_channel_id} no longer exists")
                 self.refresh_bracket_loop.stop()
                 return
 
         if isinstance(channel, discord.abc.Messageable):
-            print(f"[Challonge Snap] Auto-refreshing bracket: {self.bracket_id}")
+            logger.info(f"Auto-refreshing bracket: {self.bracket_id}")
             await self.update_and_send_bracket(channel)
 
     @refresh_bracket_loop.before_loop
@@ -218,4 +281,4 @@ bot = DiscordBot()
 
 # Run the bot
 if DISCORD_BOT_TOKEN:
-    bot.run(DISCORD_BOT_TOKEN)
+    bot.run(DISCORD_BOT_TOKEN, log_handler=None)

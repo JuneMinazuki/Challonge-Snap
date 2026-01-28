@@ -3,12 +3,16 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
+import logging
 
 import aiohttp
 import cairosvg
 from dotenv import load_dotenv
 
 from json_handler import load_json, save_json
+
+# Configure logging
+logger = logging.getLogger(f'{__name__}')
 
 # Load the api key from the .env file
 load_dotenv()
@@ -36,12 +40,15 @@ HEADERS: dict[str, str] = {
 async def get_tournament_id(session: aiohttp.ClientSession, tournament_id: str) -> str | None:
     """Extracts the internal numeric ID from the public Challonge page."""
     url: str = f"https://challonge.com/{tournament_id}"
-    print(f"[aiohttp] Looking up ID from public page: {url}")
+    logger.info(f"Looking up ID from public page: {url}")
+
+    async with session.get("https://challonge.com/") as resp:
+        await resp.text()
 
     try:
         async with session.get(url) as response:
             if response.status != 200:
-                print(f"[Error] Failed to load page. Status: {response.status}")
+                logger.error(f"Failed to load page. Status: {response.status}")
                 return None
 
             # Get HTML content
@@ -52,21 +59,24 @@ async def get_tournament_id(session: aiohttp.ClientSession, tournament_id: str) 
             
             if match:
                 found_id: str = match.group(1)
-                print(f"[aiohttp] Found Tournament ID: {found_id}")
+                logger.info(f"Found Tournament ID: {found_id}")
                 return found_id
             else:
-                print("[Error] Could not find tournament ID in page source.")
+                logger.warning("Could not find tournament ID in page source")
                 return None
 
     except Exception as e:
-        print(f"[Error] Error looking up ID: {e}")
+        logger.error(f"Error looking up ID: {e}")
         return None
     
 async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id: str) -> bytes | None:
     """Draw the challonge bracket"""
     url: str = f"https://challonge.com/{tournament_id}.svg"
 
-    print(f"[aiohttp] Attempting to fetch: {url}")
+    async with session.get("https://challonge.com/") as resp:
+        await resp.text()
+
+    logger.info(f"Attempting to fetch: {url}")
 
     try:
         async with session.get(url) as response:
@@ -83,7 +93,7 @@ async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id:
             if "image/svg+xml" in content_type or b"<svg" in content[:100].lower():
                 edited_content: bytes = await edit_svg(content)
 
-                print("[cairosvg] Converting SVG to bytes...")
+                logger.info("Converting SVG to bytes via cairosvg")
 
                 # Convert svg to bytes
                 image_bytes: bytes | None = await asyncio.to_thread(
@@ -92,19 +102,19 @@ async def fetch_challonge_bracket(session: aiohttp.ClientSession, tournament_id:
                     scale=2
                 )
                 
-                print(f"[cairosvg] Image sucessfully convert to bytes")
+                logger.info(f"Image sucessfully convert to bytes")
                 return image_bytes
             else:
-                print("[Warning] The status was 200 OK, but the content does not look like an SVG.")
-                print(f"Content-Type: {content_type}")
+                logger.warning("The status was 200 OK, but the content does not look like an SVG")
+                logger.warning(f"Content-Type: {content_type}")
                 return None
 
     except aiohttp.ClientResponseError as e:
-        print(f"[HTTP Error] {e.status} - {e.message}")
+        logger.error(f"HTTP Error: {e.status} - {e.message}")
         return None
     
     except aiohttp.ClientError as e:
-        print(f"[Connection Error] {e}")
+        logger.error(f"Connection Error: {e}")
         return None
 
 async def fetch_last_update(session: aiohttp.ClientSession, tournament_id: str) -> tuple[str | None, bool]:
@@ -134,12 +144,12 @@ async def fetch_last_update(session: aiohttp.ClientSession, tournament_id: str) 
             return last_update, is_finished
             
     except Exception as e:
-        print(f"[Error Fetching Data] {e}")
+        logger.error(f"Error Fetching Data: {e}")
         return None, False
 
 async def edit_svg(content: bytes, padding: int = 40) -> bytes:
     """Convert svg from website into bytes"""
-    print("[xml] Editing SVG file")
+    logger.info("Editing SVG file via XML")
 
     # Register namespaces to prevent 'ns0' prefixes in output
     ET.register_namespace("", "http://www.w3.org/2000/svg")
@@ -211,10 +221,10 @@ async def get_latest_bracket(tournament_id: str) -> tuple[bytes | None, bool]:
         update_time, is_complete = await fetch_last_update(session, tournament_id)
 
         if (last_update == update_time):
-            print("[bracket_drawer] No update needed.")
+            logger.info(f"No update needed for {tournament_id}")
             return None, is_complete
         
-        print(f"[bracket_drawer] Update found for {tournament_id}.")
+        logger.info(f"Update found for {tournament_id}")
         
         # Update last_update
         last_update = update_time
@@ -237,4 +247,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nStopped by user.")
+        logger.debug("Program stopped by user")
